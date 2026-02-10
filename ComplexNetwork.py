@@ -18,7 +18,7 @@ conn = sqlite3.connect('ESreferences.db')
 cursor = conn.cursor()
 
 # Store all the pdf's in an array
-folder_path = r"D:\Epstein Files\Python\smalltest"
+folder_path = r"D:\Epstein Files\PDF's"
 pdfFiles = []
 for root, dirs, files in os.walk(folder_path):
     for file in files:
@@ -34,7 +34,6 @@ with open('word_categories.csv', 'r', encoding='utf-8') as f:
         keys[row[0]] = row[1]
 
 
-
 def timeElapsed(startTime, pdfIndex):
             # Get Time
         elapsed = time.time() - startTime
@@ -45,6 +44,7 @@ def timeElapsed(startTime, pdfIndex):
 
 def process_pdf(pdf):
     results = []
+    surrResults = []
     reader = PdfReader(pdf)
     for page in reader.pages:
         text = page.extract_text()
@@ -55,28 +55,39 @@ def process_pdf(pdf):
 
         for key in keys:
             if key.lower() in text_lower:
-                textIndex = text.find(key)
+                textIndex = text_lower.find(key)
                 surrText = text[textIndex-25:textIndex+25]
-                results.append((fileNum, keys[key], surrText))
-    return results
+                results.append((fileNum, keys[key]))
+                surrResults.append((fileNum, surrText))
+
+    return results, surrResults
 
 def searhForKeywords(): # Searches though every pdf for the keywords and stored by document
     # Clear the table
     cursor.execute('DROP TABLE IF EXISTS ESreferences')
+    cursor.execute('DROP TABLE IF EXISTS ESsurrounding')
 
     # Create the table if it doesn't exist (Format: fileNum, category)
     cursor.execute('''CREATE TABLE IF NOT EXISTS ESreferences
-                    (fileNumber TEXT, category TEXT, surroundingText TEXT)''')
+                    (fileNumber TEXT, category TEXT)''')
+    conn.commit()
+
+        # Create the table if it doesn't exist (Format: fileNum, category)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS ESsurrounding
+                    (fileNumber TEXT, surroundingText TEXT)''')
     conn.commit()
 
     startTime = time.time()
-    rows = []
+    refRows = []
+    surrRows = []
     with Pool() as pool:
-        for pdfIndex, result in enumerate(pool.imap_unordered(process_pdf, pdfFiles), 1):
+        for pdfIndex, (refResult, surrResult) in enumerate(pool.imap_unordered(process_pdf, pdfFiles), 1):
             remaining = timeElapsed(startTime, pdfIndex)
             print(f"Processing file {pdfIndex}/{len(pdfFiles)} | {round(pdfIndex/len(pdfFiles)*100, 2)}% | ETA: {round(remaining/60, 1)} min")
-            rows.extend(result)
-    cursor.executemany('''INSERT INTO ESreferences (fileNumber, category, surroundingText) VALUES (?, ?, ?)''', rows)
+            refRows.extend(refResult)
+            surrRows.extend(surrResult)
+    cursor.executemany('''INSERT INTO ESreferences (fileNumber, category) VALUES (?, ?)''', refRows)
+    cursor.executemany('''INSERT INTO ESsurrounding (fileNumber, surroundingText) VALUES (?, ?)''', surrRows)
     conn.commit()
 
     print("Exported Data to ESreferences.db")
@@ -100,6 +111,7 @@ def pyVisGraph(G):
                      color={'color': 'rgba(36, 123, 160, 0.3)', 'highlight': 'rgba(251, 54, 64, 1)'})
 
     net.toggle_physics(False)
+    net.toggle_drag_nodes(False)
 
     # Calculate positions with NetworkX and apply them to pyvis nodes
     pos = nx.spring_layout(G, k=10, scale=1000)
@@ -109,7 +121,7 @@ def pyVisGraph(G):
         net.get_node(node)['x'] = x
         net.get_node(node)['y'] = y
 
-    # Display graph and 
+    # Display graph and print nodes
     print(f"Nodes: {G.number_of_nodes()}")
     print(f"Edges: {G.number_of_edges()}")
     net.save_graph('graph.html')
