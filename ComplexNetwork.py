@@ -12,6 +12,7 @@ import math
 from pyvis.network import Network
 import webbrowser
 from multiprocessing import Pool
+import random
 
 # Setup SQL Database
 conn = sqlite3.connect('ESreferences.db')
@@ -45,20 +46,31 @@ def timeElapsed(startTime, pdfIndex):
 def process_pdf(pdf):
     results = []
     surrResults = []
-    reader = PdfReader(pdf)
-    for page in reader.pages:
-        text = page.extract_text()
-        text_lower = text.lower()
-        
-        fileNumIndex = text.find('EFTA0')
-        fileNum = text[fileNumIndex:fileNumIndex+12]
 
-        for key in keys:
-            if key.lower() in text_lower:
-                textIndex = text_lower.find(key)
-                surrText = text[textIndex-25:textIndex+25]
-                results.append((fileNum, keys[key]))
-                surrResults.append((fileNum, surrText))
+    try:
+        reader = PdfReader(pdf)
+    except Exception as e:
+        print(f"Failed to open {pdf}: {e}")
+        return [], []
+    try:
+        for page in reader.pages:
+            text = page.extract_text()
+            if not text:
+                continue
+            text_lower = text.lower()
+            
+            fileNumIndex = text.find('EFTA0')
+            fileNum = text[fileNumIndex:fileNumIndex+12]
+
+            for key in keys:
+
+                if key.lower() in text_lower:
+                    textIndex = text_lower.find(key)
+                    surrText = text[textIndex-25:textIndex+25]
+                    results.append((fileNum, keys[key]))
+                    surrResults.append((fileNum, surrText))
+    except Exception as e:
+        print(f"Failed to read page {pdf}: {e}")
 
     return results, surrResults
 
@@ -94,27 +106,27 @@ def searhForKeywords(): # Searches though every pdf for the keywords and stored 
 
 def pyVisGraph(G):
     # PyVis for HTML graph
-    net = Network(height='750px', width='100%', bgcolor='#222222', font_color='white')
+    net = Network(height='1000', width='100%', bgcolor='#222222', font_color='white')
 
     for node in G.nodes(): # Loop through g.nodes and add nodes to netx graph
         count = G.nodes[node].get('count', 1)
         net.add_node(node, label=str(node), size=math.log(count) * 2, 
                      font={'size': 100, 'color': 'white'},
-                     color={'background': 'rgba(31, 72, 126, 1)',
+                     color={'background': 'rgba(31, 72, 126, 0.5)',
                             'border': 'rgba(31, 72, 126, 1)',
                             'border': 'rgba(31, 72, 126, 1)',
-                            'highlight': {'background': 'rgba(128, 32, 26, 1)', 'border': 'rgba(251, 54, 64, 1)'}})
+                            'highlight': {'background': 'rgba(128, 32, 26, 1)', 'border': 'rgba(128, 32, 26, 1)'}})
 
     for u, v in G.edges(): # Loop through g.edges and add edges to netx graph
         weight = G[u][v]['weight']
-        net.add_edge(u, v, value=weight * 10,
-                     color={'color': 'rgba(36, 123, 160, 0.3)', 'highlight': 'rgba(251, 54, 64, 1)'})
+        net.add_edge(u, v, value=math.log(weight + 1) * 2,
+                     color={'color': 'rgba(36, 123, 160, 0.1)', 'highlight': 'rgba(251, 54, 64, 1)'})
 
     net.toggle_physics(False)
-    net.toggle_drag_nodes(False)
+    net.toggle_drag_nodes(True)
 
     # Calculate positions with NetworkX and apply them to pyvis nodes
-    pos = nx.spring_layout(G, k=10, scale=1000)
+    pos = nx.spring_layout(G, k=20, scale=1000)
 
     # Set pos of each node
     for node, (x, y) in pos.items():
