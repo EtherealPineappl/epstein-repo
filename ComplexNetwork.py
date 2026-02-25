@@ -154,11 +154,20 @@ def pyVisGraph(G):
 
 
     net.save_graph('graph.html')
-        # Remove default body margin from generated graph.html
+
     with open('graph.html', 'r', encoding='utf-8') as f:
         html = f.read()
+        
+    style_fix = """
+    <style>
+    body { margin: 0 !important; padding: 0 !important; background-color: #40382E !important; }
+    .card { border: none !important; margin: 0 !important; padding: 0 !important; background-color: #40382E !important; }
+    .card-body { padding: 0 !important; }
+    #mynetwork { border: none !important; }
+    </style>
+    """
 
-    html = html.replace('<body>', '<body style="margin:0;padding:0;overflow:hidden;">')
+    html = html.replace('</head>', style_fix + '</head>')
 
     with open('graph.html', 'w', encoding='utf-8') as f:
         f.write(html)
